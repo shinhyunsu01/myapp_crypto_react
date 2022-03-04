@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "react-query";
+import { Helmet } from "react-helmet";
 import {
   Route,
   Switch,
@@ -8,6 +10,7 @@ import {
 } from "react-router";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
+import { fetchCoinInfo, fetchCoinTickers } from "../api";
 import Chart from "./Chart";
 import Price from "./Price";
 
@@ -82,6 +85,8 @@ interface PriceData {
   };
 }
 
+interface ICoinProps {}
+
 const Container = styled.div`
   padding: 0px 20px;
   max-width: 480px;
@@ -148,18 +153,29 @@ const Tab = styled.span<{ isActive: boolean }>`
   }
 `;
 
-function Coin() {
-  const [loading, setLoading] = useState(true);
+function Coin({}: ICoinProps) {
   const { coinId } = useParams<RouteParams>();
-  const location = useLocation();
   const { state } = useLocation<RouteState>();
-
-  const [info, setInfo] = useState<InfoData>();
-  const [priceInfo, setPriceInfo] = useState<PriceData>();
 
   const priceMatch = useRouteMatch("/:coinId/price"); //route 경로 가 같은지
   const chartMatch = useRouteMatch("/:coinId/chart");
 
+  const { isLoading: infoLoading, data: infoData } = useQuery<InfoData>(
+    ["info", coinId],
+    () => fetchCoinInfo(coinId)
+  );
+  const { isLoading: tickersLoading, data: tickersData } = useQuery<PriceData>(
+    ["tickers", coinId],
+    () => fetchCoinTickers(coinId),
+    {
+      refetchInterval: 500,
+    }
+  );
+  /*
+  const [loading, setLoading] = useState(true);
+  const [info, setInfo] = useState<InfoData>();
+  const [priceInfo, setPriceInfo] = useState<PriceData>();
+  
   useEffect(() => {
     (async () => {
       const infoData = await (
@@ -174,8 +190,13 @@ function Coin() {
       setLoading(false);
     })();
   }, [coinId]);
+  */
+  const loading = infoLoading || tickersLoading;
   return (
     <Container>
+      <Helmet>
+        <title>코인</title>
+      </Helmet>
       <Header>
         <Title>{state?.name || "Loading"}</Title>
       </Header>
@@ -184,30 +205,38 @@ function Coin() {
       ) : (
         <>
           <Overview>
+            <Link
+              to={{
+                pathname: `/`,
+              }}
+            >
+              {coinId}
+            </Link>
+
             <OverviewItem>
               <span>Rank:</span>
-              <span>{info?.rank}</span>
+              <span>{infoData?.rank}</span>
             </OverviewItem>
             <OverviewItem>
               <span>Symbol:</span>
-              <span>${info?.symbol}</span>
+              <span>${infoData?.symbol}</span>
             </OverviewItem>
             <OverviewItem>
-              <span>Open Source:</span>
-              <span>{info?.open_source ? "Yes" : "No"}</span>
+              <span>Price:</span>
+              <span>{tickersData?.quotes.USD.price.toFixed(2)}</span>
             </OverviewItem>
           </Overview>
 
-          <Description>{info?.description}</Description>
+          <Description>{infoData?.description}</Description>
 
           <Overview>
             <OverviewItem>
               <span>Total Suply</span>
-              <span>{priceInfo?.total_supply}</span>
+              <span>{tickersData?.total_supply}</span>
             </OverviewItem>
             <OverviewItem>
               <span>Max Suply</span>
-              <span>{priceInfo?.max_supply}</span>
+              <span>{tickersData?.max_supply}</span>
             </OverviewItem>
           </Overview>
 
@@ -225,7 +254,7 @@ function Coin() {
               <Price />
             </Route>
             <Route path={`/:coinId/chart`}>
-              <Chart />
+              <Chart coinId={coinId} />
             </Route>
           </Switch>
         </>
